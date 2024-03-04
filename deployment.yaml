@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-deployment
+  labels:
+    app: flask
+spec:
+  selector:
+    matchLabels:
+      app: flask
+  template:
+    metadata:
+      labels:
+        app: flask
+    spec:
+      containers:
+      - name: flask
+        image: gcr.io/booming-list-378409/flask:v3
+        ports:
+        - containerPort: 5000
+#        resources:
+#          requests:de
+#            memory: "64Mi"  # Set the memory request
+#            cpu: "250m"     # Set the CPU request
+#          limits:
+#            memory: "128Mi" # Set the memory limit
+#            cpu: "500m"     # Set the CPU limit

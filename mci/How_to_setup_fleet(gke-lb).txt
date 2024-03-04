@@ -1,0 +1,115 @@
+step 1: Create two or more GKE cluster in Different Regions like
+        1. Asia
+        2. USA
+        3. Europe
+
+
+****** Note: you need to have gcloud cli/sdk installed on your local machine ******
+
+Step 2: Do the Pre-requisite
+
+       a. Confirm that the GKE Enterprise API is disabled in your project:
+        $ gcloud services list --project=booming-list-378409 | grep anthos.googleapis.com
+
+       b. Enable the required APIs in your project:
+        $ gcloud services enable \
+          multiclusteringress.googleapis.com \
+          gkehub.googleapis.com \
+          container.googleapis.com \
+          multiclusterservicediscovery.googleapis.com \
+          --project=booming-list-378409
+
+Step 3: Connect to GKE Cluster in your local machine
+
+            first cluster
+        a. gcloud container clusters get-credentials gke-us \
+                --region=us-central1 \
+                --project=booming-list-378409
+            second cluster
+        b. gcloud container clusters get-credentials gke-eu \
+                --region=europe-west1 \
+                --project=booming-list-378409
+
+        Now you can list the connected cluster using below command:
+        $ kubectl config use-context
+
+        Optionally use can create or rename the context name:
+        $ kubectl config rename-context gke_booming-list-378409_us-central1_gke-us gke-us
+        $ kubectl config rename-context gke_booming-list-378409_europe-west1_gke-eu gke-eu
+
+Step 4: Register The Clusters to the fleet as member.
+
+        Before adding the clusters to fleet run the below command to enable Workload Identity.
+        $ gcloud container clusters update CLUSTER_NAME \
+            --region=COMPUTE_REGION \
+            --workload-pool=PROJECT_ID.svc.id.goog
+
+        Replace the following:
+
+        CLUSTER_NAME: the name of your existing cluster.
+        COMPUTE_REGION: the Compute Engine region of your cluster. For zonal clusters, use --zone=COMPUTE_ZONE.
+        PROJECT_ID: your Google Cloud project ID.
+
+        ***** Do repeat the above command for each cluster. *****
+
+        Register the clusters using below command.
+        $ gcloud container fleet memberships register gke-us \
+            --gke-cluster us-central1/gke-us \
+            --enable-workload-identity \
+            --project=booming-list-378409
+
+        $ gcloud container fleet memberships register gke-eu \
+            --gke-cluster europe-west1/gke-eu \
+            --enable-workload-identity \
+            --project=booming-list-378409
+
+            OR
+
+            gcloud container fleet memberships register asia-cluster \
+            --gke-cluster asia-south1-c/asia-cluster \
+            --enable-workload-identity \
+            --project=booming-list-378409
+
+            gcloud container fleet memberships register usa-cluster \
+            --gke-cluster us-central1-c/usa-cluster \
+            --enable-workload-identity \
+            --project=booming-list-378409
+
+            gcloud container fleet memberships register europe-cluster \
+            --gke-cluster europe-west1-c/europe-cluster \
+            --enable-workload-identity \
+            --project=booming-list-378409
+
+
+        After following the above command run the below command to check the clusters are registered to fleet.
+        $ gcloud container fleet memberships list --project=booming-list-378409
+
+        output will be similar like:
+        NAME                                  EXTERNAL_ID
+        gke-us                                0375c958-38af-11ea-abe9-42010a800191
+        gke-eu                                d3278b78-38ad-11ea-a846-42010a840114
+
+Step 5: Specify a config cluster
+        The config cluster is a GKE cluster you choose to be the central point of control for Ingress across the member
+        clusters. This cluster must already be registered to the fleet.
+        for more info:
+        https://cloud.google.com/kubernetes-engine/docs/concepts/multi-cluster-ingress#config_cluster_design
+
+        Note: Even if you have zonal GKE clusters, Multi Cluster Ingress controller is only available in a region.
+        To enable Multi Cluster Ingress, you must
+        specify the region instead of the zone when you use the --location parameter.
+
+        Command to set cluster as config cluster:
+        $ gcloud container fleet ingress enable \
+            --config-membership=gke-us \
+            --location=us-central1 \
+            --project=booming-list-378409
+
+        output similar to:
+        Waiting for Feature to be created...done.
+        Waiting for controller to start...done.
+
+        Also you can confirm by applying this command:
+        $ gcloud container fleet ingress describe \
+            --project=booming-list-378409
+

@@ -1,0 +1,130 @@
+Deploying Ingress across clusters
+
+In the following tasks, you will deploy a fictional app named whereami and a MultiClusterIngress in two clusters.
+The Ingress provides a shared virtual IP (VIP) address for the app deployments.
+
+$ gcloud container clusters list
+
+Step 1: Creating the Namespace
+        file name: "namespace.yaml" in folder
+
+        Apply in each cluster using below commands:
+        $ kubectl config use-context gke-us
+        $ kubectl apply -f namespace.yaml
+
+        Do same for other clusters (repeat above commands)
+
+        output:
+        namespace/whereami created
+
+Step 2: Deploying the app
+        file name: "deploy.yaml" in folder
+
+        Apply commands:
+        $ kubectl config use-context gke-us
+        $ kubectl apply -f deploy.yaml
+
+        Do same for other clusters (repeat above commands)
+
+        output:
+        NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+        whereami-deployment   1/1     1            1           12m
+
+Step 3: MultiClusterService
+
+        Now that the application is deployed across gke-us and gke-eu, you will deploy a load balancer by deploying
+        MultiClusterIngress and MultiClusterService resources in the config cluster.
+        These are the multi-cluster equivalents of Ingress and Service resources.
+
+        **** Note: You configured the gke-us cluster as the config cluster.
+                   The config cluster is used to deploy and configure Ingress across all clusters ****
+
+        $ kubectl config use-context gke-us
+
+        file name: "mcs.yaml"
+        $ kubectl apply -f mcs.yaml
+
+        verify:
+        $ kubectl get mcs -n whereami
+
+        output:
+        NAME       AGE
+        whereami-mcs   9m26s
+
+        This MultiClusterService creates a derived headless Service in every cluster that matches Pods with
+        app: whereami.
+        You can see that one exists in the gke-us cluster kubectl get service -n whereami.
+
+Step 4: MultiClusterIngress
+
+        file name: "mci.yaml"
+        $ kubectl apply -f mci.yaml
+
+        **** Note: Note that this configuration routes all traffic to the MultiClusterService
+                   named whereami-mcs that exists in the whereami namespace. ****
+
+        output:
+        multiclusteringress.networking.gke.io/whereami-ingress created
+
+Step 5: Validating a successful deployment status
+
+        Google Cloud Load Balancer deployment might take several minutes to deploy for new load balancers.
+        Updating existing load balancers completes faster because new resources don't need to be deployed.
+        The MultiClusterIngress resource details the underlying Compute Engine resources that
+        have been created on behalf of the MultiClusterIngress.
+
+        $ kubectl describe mci whereami-ingress -n whereami
+
+        output:
+            Name:         whereami-ingress
+            Namespace:    whereami
+            Labels:       <none>
+            Annotations:  kubectl.kubernetes.io/last-applied-configuration:
+                            {"apiVersion":"networking.gke.io/v1","kind":"MultiClusterIngress","metadata":{"annotations":{},"name":"whereami-ingress","namespace":"whe...
+            API Version:  networking.gke.io/v1
+            Kind:         MultiClusterIngress
+            Metadata:
+              Creation Timestamp:  2020-04-10T23:35:10Z
+              Finalizers:
+                mci.finalizer.networking.gke.io
+              Generation:        2
+              Resource Version:  26458887
+              Self Link:         /apis/networking.gke.io/v1/namespaces/whereami/multiclusteringresses/whereami-ingress
+              UID:               62bec0a4-8a08-4cd8-86b2-d60bc2bda63d
+            Spec:
+              Template:
+                Spec:
+                  Backend:
+                    Service Name:  whereami-mcs
+                    Service Port:  8080
+            Status:
+              Cloud Resources:
+                Backend Services:
+                  mci-8se3df-8080-whereami-whereami-mcs
+                Firewalls:
+                  mci-8se3df-default-l7
+                Forwarding Rules:
+                  mci-8se3df-fw-whereami-whereami-ingress
+                Health Checks:
+                  mci-8se3df-8080-whereami-whereami-mcs
+                Network Endpoint Groups:
+                  zones/europe-west1-b/networkEndpointGroups/k8s1-e4adffe6-whereami-mci-whereami-mcs-svc-lgq966x5m-808-88670678
+                  zones/us-central1-b/networkEndpointGroups/k8s1-a6b112b6-whereami-mci-whereami-mcs-svc-lgq966x5m-808-609ab6c6
+                Target Proxies:
+                  mci-8se3df-whereami-whereami-ingress
+                URL Map:  mci-8se3df-whereami-whereami-ingress
+              VIP:        34.98.102.37
+            Events:
+              Type    Reason  Age                    From                              Message
+              ----    ------  ----                   ----                              -------
+              Normal  ADD     3m35s                  multi-cluster-ingress-controller  whereami/whereami-ingress
+              Normal  UPDATE  3m10s (x2 over 3m34s)  multi-cluster-ingress-controller  whereami/whereami-ingress
+
+Step 6: Validate that the application is serving on the VIP with the /ping endpoint:
+        VIP:        34.98.102.37
+
+        curl INGRESS_VIP/ping
+        or
+        visit on browser http://34.98.102.37
+
+!!!!DONE!!!!
